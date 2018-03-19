@@ -15,26 +15,26 @@ class RBM(object):
     def __init__(self, x_size, h_size):
         self.x_size = x_size
         self.h_size = h_size
-        self.W = rng.normal(0, 0.1, (self.h_size, self.x_size))
-        self.b = np.zeros((self.h_size, 1))
-        self.c = np.zeros((self.x_size, 1))
+        self.W = rng.normal(0, 0.1, (self.h_size, self.x_size)).astype(np.float32)
+        self.b = np.zeros((self.h_size, 1), dtype=np.float32)
+        self.c = np.zeros((self.x_size, 1), dtype=np.float32)
 
     def train(self, data_train, data_valid, epoch=200, batch_size=10, alpha=0.1, lmbda=0., momentum=0., k=1,
               output=False):
         self.batch_size = batch_size
         n = len(data_train)
-        train_cross_entropy_errors = np.zeros(epoch)
-        valid_cross_entropy_errors = np.zeros(epoch)
-        self.update_W = np.zeros(self.W.shape)
-        self.update_b = np.zeros(self.b.shape)
-        self.update_c = np.zeros(self.c.shape)
+        train_cross_entropy_errors = np.zeros(epoch, dtype=np.float32)
+        valid_cross_entropy_errors = np.zeros(epoch, dtype=np.float32)
+        self.update_W = np.zeros(self.W.shape, dtype=np.float32)
+        self.update_b = np.zeros(self.b.shape, dtype=np.float32)
+        self.update_c = np.zeros(self.c.shape, dtype=np.float32)
         for i in range(epoch):
             rng.shuffle(data_train)
             mini_batches = [data_train[j:j + batch_size] for j in range(0, n, batch_size)]
             for mini_batch in mini_batches:
                 self.SGD(mini_batch, alpha, lmbda, momentum, k)
-            train_cross_entropy_errors[i] = self.reconstruction_error(data_train)
-            valid_cross_entropy_errors[i] = self.reconstruction_error(data_valid)
+            train_cross_entropy_errors[i] = self.reconstruct(data_train, output=False)
+            valid_cross_entropy_errors[i] = self.reconstruct(data_valid, output=False)
             if output or i + 1 == epoch:
                 print("Epoch {0} completed".format(i + 1))
             if output:
@@ -44,7 +44,7 @@ class RBM(object):
 
     def SGD(self, mini_batch, alpha, lmbda, momentum, k=1):
         x, y = zip(*mini_batch)
-        x = np.hstack(x)
+        x = np.hstack(x).astype(np.float32)
         h_x, h_x_neg, x_neg = self.CD_k(x, k)
         nabla_W = np.dot(h_x_neg, x_neg.T) - np.dot(h_x, x.T)
         nabla_b = np.sum(h_x_neg - h_x, axis=1).reshape(self.b.shape)
@@ -66,10 +66,16 @@ class RBM(object):
             h_x_neg = sigmoid(np.dot(self.W, x_sample) + self.b)
         return h_x, h_x_neg, x_neg
 
-    def reconstruction_error(self, data):
+    def reconstruct(self, data, output=False):
         x, y = zip(*data)
-        x = np.hstack(x)
+        x = np.hstack(x).astype(np.float32)
         h_x = sigmoid(np.dot(self.W, x) + self.b)
         x_h = sigmoid(np.dot(self.W.T, h_x) + self.c)
+        cross_entropy_error = self.reconstruction_error(x, x_h)
+        if output:
+            print("Test cross-entropy error      : {0:7.4f}".format(cross_entropy_error))
+        return cross_entropy_error
+
+    def reconstruction_error(self, x, x_h):
         cross_entropy = np.sum(-x * np.log(x_h + epsilon) - (1 - x) * np.log(1 - x_h + epsilon), axis=0)
         return np.mean(cross_entropy, axis=0)

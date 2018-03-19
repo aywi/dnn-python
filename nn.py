@@ -7,6 +7,14 @@ epsilon = 1e-10
 rng = np.random.RandomState(seed=0)
 
 
+def linear(a):
+    return a
+
+
+def linear_prime(a):
+    return np.ones(a.shape).astype(a.dtype)
+
+
 def sigmoid(a):
     return 1. / (1. + np.exp(-a))
 
@@ -23,11 +31,11 @@ def tanh_prime(a):
     return 1. - tanh(a) ** 2.
 
 
-def ReLU(a):
-    return np.maximum(a, np.zeros(a.shape))
+def relu(a):
+    return np.maximum(a, np.zeros(a.shape).astype(a.dtype))
 
 
-def ReLU_prime(a):
+def relu_prime(a):
     return (a > 0.).astype(a.dtype)
 
 
@@ -36,23 +44,23 @@ def softmax(a):
 
 
 class NN(object):
-    def __init__(self, sizes, g, g_prime):
+    def __init__(self, sizes, g_type):
         self.sizes = sizes
-        self.g = g
-        self.g_prime = g_prime
-        self.Ws = [rng.uniform(-np.sqrt(6 / (x + y)), np.sqrt(6 / (x + y)), (y, x)) for x, y in
+        self.g = globals()[g_type]
+        self.g_prime = globals()[g_type + "_prime"]
+        self.Ws = [rng.uniform(-np.sqrt(6 / (x + y)), np.sqrt(6 / (x + y)), (y, x)).astype(np.float32) for x, y in
                    zip(self.sizes[:-1], self.sizes[1:])]
-        self.bs = [np.zeros((y, 1)) for y in self.sizes[1:]]
+        self.bs = [np.zeros((y, 1), dtype=np.float32) for y in self.sizes[1:]]
 
     def train(self, data_train, data_valid, epoch=200, batch_size=10, alpha=0.1, lmbda=0., momentum=0., output=False):
         self.batch_size = batch_size
         n = len(data_train)
-        train_cross_entropy_errors = np.zeros(epoch)
-        valid_cross_entropy_errors = np.zeros(epoch)
-        train_classification_errors = np.zeros(epoch)
-        valid_classification_errors = np.zeros(epoch)
-        self.update_W = [np.zeros(w.shape) for w in self.Ws]
-        self.update_b = [np.zeros(b.shape) for b in self.bs]
+        train_cross_entropy_errors = np.zeros(epoch, dtype=np.float32)
+        valid_cross_entropy_errors = np.zeros(epoch, dtype=np.float32)
+        train_classification_errors = np.zeros(epoch, dtype=np.float32)
+        valid_classification_errors = np.zeros(epoch, dtype=np.float32)
+        self.update_W = [np.zeros(w.shape, dtype=np.float32) for w in self.Ws]
+        self.update_b = [np.zeros(b.shape, dtype=np.float32) for b in self.bs]
         for i in range(epoch):
             rng.shuffle(data_train)
             mini_batches = [data_train[j:j + batch_size] for j in range(0, n, batch_size)]
@@ -97,11 +105,11 @@ class NN(object):
 
     def backward_prop(self, mini_batch):
         x, y = zip(*mini_batch)
-        x = np.hstack(x)
-        y = np.hstack(y)
+        x = np.hstack(x).astype(np.float32)
+        y = np.hstack(y).astype(np.float32)
         h_xs, a_xs = self.forward_prop(x)
-        nabla_W = [np.zeros(w.shape) for w in self.Ws]
-        nabla_b = [np.zeros(b.shape) for b in self.bs]
+        nabla_W = [np.zeros(w.shape, dtype=np.float32) for w in self.Ws]
+        nabla_b = [np.zeros(b.shape, dtype=np.float32) for b in self.bs]
         delta = h_xs[-1] - y
         nabla_W[-1] = np.dot(delta, h_xs[-2].T)
         nabla_b[-1] = np.sum(delta, axis=1).reshape(self.bs[-1].shape)
@@ -112,25 +120,22 @@ class NN(object):
         return nabla_W, nabla_b
 
     def predict(self, data, output=False):
-        cross_entropy_error = self.cross_entropy_error(data)
-        classification_error = self.classification_error(data)
+        x, y = zip(*data)
+        x = np.hstack(x).astype(np.float32)
+        y = np.hstack(y).astype(np.float32)
+        f_x = self.forward_prop(x, predict=True)
+        cross_entropy_error = self.cross_entropy_error(y, f_x)
+        classification_error = self.classification_error(y, f_x)
         if output:
-            print("Test cross-entropy error  : {0:6.4f}  Test classification error  : {1:5.2f}%".format(
+            print("Test cross-entropy error      : {0:6.4f}  Test classification error      : {1:5.2f}%".format(
                 cross_entropy_error, classification_error))
         return cross_entropy_error, classification_error
 
-    def cross_entropy_error(self, data):
-        x, y = zip(*data)
-        x = np.hstack(x)
-        y = np.hstack(y)
-        f_x = self.forward_prop(x, predict=True)
+    def cross_entropy_error(self, y, f_x):
         cross_entropy = np.sum(-y * np.log(f_x + epsilon) - (1 - y) * np.log(1 - f_x + epsilon), axis=0)
-        return np.sum(cross_entropy, axis=0) / len(data)
+        return np.sum(cross_entropy, axis=0) / np.shape(y)[1]
 
-    def classification_error(self, data):
-        x, y = zip(*data)
-        x = np.hstack(x)
-        y = np.hstack(y)
-        f_x = np.argmax(self.forward_prop(x, predict=True), axis=0)
+    def classification_error(self, y, f_x):
         y = np.argmax(y, axis=0)
-        return sum(int(x != y) for (x, y) in zip(f_x, y)) / len(data) * 100
+        f_x = np.argmax(f_x, axis=0)
+        return sum(int(x != y) for (x, y) in zip(f_x, y)) / np.shape(y)[0] * 100

@@ -3,6 +3,7 @@
 
 import numpy as np
 
+
 def sigmoid(a):
     return 1. / (1. + np.exp(-a))
 
@@ -141,7 +142,7 @@ class NN(object):
             sigma2 = self.batch_size / (self.batch_size - 1) * np.mean(self.running_sigma2s[-l + 1], axis=1).reshape(
                 a_x.shape[0], 1)
             BN_x = self.gammas[-l + 1] / np.sqrt(sigma2 + self.epsilon) * a_x + (
-                self.betas[-l + 1] - self.gammas[-l + 1] * mu / np.sqrt(sigma2 + self.epsilon))
+                    self.betas[-l + 1] - self.gammas[-l + 1] * mu / np.sqrt(sigma2 + self.epsilon))
         return BN_x
 
     def backward_prop(self, mini_batch):
@@ -173,7 +174,7 @@ class NN(object):
             delta.shape[0], 1)
         nabla_beta[-l] = np.sum(delta, axis=1).reshape(delta.shape[0], 1)
         delta = (1. / self.batch_size) * self.gammas[-l] / np.sqrt(sigma2 + self.epsilon) * (
-            self.batch_size * delta - np.sum(delta, axis=1).reshape(delta.shape[0], 1) - (a_xs[-l] - mu) / (
+                self.batch_size * delta - np.sum(delta, axis=1).reshape(delta.shape[0], 1) - (a_xs[-l] - mu) / (
                 sigma2 + self.epsilon) * np.sum(delta * (a_xs[-l] - mu), axis=1).reshape(delta.shape[0], 1))
         return delta, nabla_gamma, nabla_beta
 
